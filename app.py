@@ -10,10 +10,21 @@ import pandas as pd
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 _APP_DIR = Path(__file__).resolve().parent
+# Optional: create .env with OLLAMA_HOST and OLLAMA_MODEL. If missing, defaults match a local Ollama install.
 load_dotenv(_APP_DIR / ".env")
+
+SAMPLE_CSV = """id,customer,amount,region,signup_date
+1,Northwind LLC,1200.50,EU,2024-01-05
+2,Acme Co,890.00,US,2024-02-11
+3,Northwind LLC,1200.50,EU,2024-01-05
+4,,450.25,US,2024-03-01
+5,Beta Inc,2100.00,APAC,2024-04-18
+6,Gamma Ltd,75.99,EU,2024-05-22
+"""
 
 app = FastAPI(title="Qualata API", version="0.1.0")
 
@@ -30,6 +41,10 @@ class OllamaInsightsService:
     def __init__(self) -> None:
         self.host = (os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434").strip().rstrip("/")
         self.model = (os.getenv("OLLAMA_MODEL") or "llama3.2").strip()
+        try:
+            self.timeout_sec = float(os.getenv("OLLAMA_TIMEOUT") or "90")
+        except ValueError:
+            self.timeout_sec = 90.0
 
     def summarize(self, payload: dict[str, Any]) -> tuple[str, str]:
         """Returns (summary_text, source) where source is ollama or fallback."""
@@ -44,7 +59,7 @@ class OllamaInsightsService:
             "key_facts": payload.get("key_facts"),
         }
         prompt = (
-            "You are a senior data analyst. Given this dataset analysis (JSON), write a clear, concise summary:\n"
+            "You are a senior data analyst. Given this dataset analysis (CSV or JSON), write a clear, concise summary:\n"
             "1) Brief overview of the dataset\n"
             "2) Main data quality concerns\n"
             "3) What duplicate findings suggest\n"
@@ -74,7 +89,7 @@ class OllamaInsightsService:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=180) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError, OSError):
             return ""
@@ -93,7 +108,8 @@ class OllamaInsightsService:
             f"Exact duplicate rows: {duplicate['exact_duplicate_count']} "
             f"({duplicate['exact_duplicate_rate_pct']}%). "
             f"Top concerns: {'; '.join(key_issues)}. "
-            "(LLM summary unavailable — start Ollama and ensure OLLAMA_MODEL matches `ollama list`.)"
+            "This summary uses built-in analysis only (no AI model). "
+            "To enable the Llama/Ollama narrative, start Ollama locally and set OLLAMA_MODEL to a pulled model from `ollama list`."
         )
 
 
@@ -267,7 +283,22 @@ def root() -> dict[str, str]:
         "service": "qualata-api",
         "llm": "ollama",
         "ollama_model": ai_service.model,
+        "ui": "/ui",
+        "sample_csv": "/sample/csv",
     }
+
+
+@app.get("/ui", response_class=HTMLResponse)
+def ui() -> HTMLResponse:
+    path = _APP_DIR / "static" / "index.html"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="UI not found (static/index.html).")
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/sample/csv", response_class=PlainTextResponse)
+def sample_csv() -> PlainTextResponse:
+    return PlainTextResponse(SAMPLE_CSV, media_type="text/csv; charset=utf-8")
 
 
 @app.post("/analyze/upload")
