@@ -29,7 +29,7 @@ SAMPLE_CSV = """id,customer,amount,region,signup_date
 app = FastAPI(title="Qualata API", version="0.1.0")
 
 
-class AnalyzeTextRequest(BaseModel):
+class AnalyseTextRequest(BaseModel):
     csv_text: str
     key_columns: list[str] | None = None
     run_ai_summary: bool = True
@@ -241,7 +241,7 @@ def _top_facts(df: pd.DataFrame) -> list[str]:
     return facts[:6]
 
 
-def _analyze_dataframe(
+def _analyse_dataframe(
     df: pd.DataFrame, key_columns: list[str] | None = None, run_ai_summary: bool = True
 ) -> dict[str, Any]:
     if df.empty:
@@ -301,8 +301,8 @@ def sample_csv() -> PlainTextResponse:
     return PlainTextResponse(SAMPLE_CSV, media_type="text/csv; charset=utf-8")
 
 
-@app.post("/analyze/upload")
-async def analyze_upload(
+@app.post("/analyse/upload")
+async def analyse_upload(
     file: UploadFile = File(...),
     key_columns: str | None = None,
     run_ai_summary: bool = True,
@@ -312,13 +312,13 @@ async def analyze_upload(
 
     parsed_keys = [x.strip() for x in key_columns.split(",")] if key_columns else None
     df = _read_csv_from_upload(file)
-    return _analyze_dataframe(df, parsed_keys, run_ai_summary)
+    return _analyse_dataframe(df, parsed_keys, run_ai_summary)
 
 
-@app.post("/analyze/text")
-def analyze_text(request: AnalyzeTextRequest) -> dict[str, Any]:
+@app.post("/analyse/text")
+def analyse_text(request: AnalyseTextRequest) -> dict[str, Any]:
     df = _read_csv_from_text(request.csv_text)
-    return _analyze_dataframe(df, request.key_columns, request.run_ai_summary)
+    return _analyse_dataframe(df, request.key_columns, request.run_ai_summary)
 
 
 if __name__ == "__main__":
