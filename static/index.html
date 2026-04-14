@@ -154,7 +154,7 @@
   <div id="overlay" aria-live="polite" aria-busy="true">
     <div class="modal">
       <div class="spinner" aria-hidden="true"></div>
-      <h2 id="loadingTitle">Analyzing dataset…</h2>
+      <h2 id="loadingTitle">Analysing dataset…</h2>
       <p id="loadingDetail">Running quality checks. If the AI model is enabled, this can take up to a few minutes.</p>
     </div>
   </div>
@@ -180,13 +180,38 @@
       </div>
 
       <div class="row">
-        <button type="button" class="primary" id="analyze">Analyze dataset</button>
-        <button type="button" class="secondary" id="mock">Load mock CSV &amp; analyze</button>
+        <button type="button" class="primary" id="analyse">Analyse dataset</button>
+        <button type="button" class="secondary" id="mock">Load mock CSV &amp; analyse</button>
       </div>
     </div>
 
     <div id="results" class="panel">
       <h2 style="font-size: 1rem; margin: 0 0 0.75rem;">Results</h2>
+      <!-- ADD THIS inside #results (just under <h2>) -->
+      <div id="scoreCard" style="display:none; margin-bottom:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:0.8rem; color:var(--muted);">Data Quality Score</div>
+            <div id="scoreValue" style="font-size:2rem; font-weight:600;">--</div>
+          </div>
+          <div id="scoreBadge" style="padding:0.4rem 0.7rem; border-radius:999px; font-size:0.8rem;">--</div>
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top:0.75rem;">
+          <div style="flex:1;">
+            <div style="font-size:0.75rem; color:var(--muted);">Completeness</div>
+            <div id="compScore">--</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:0.75rem; color:var(--muted);">Uniqueness</div>
+            <div id="uniqScore">--</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:0.75rem; color:var(--muted);">Validity</div>
+            <div id="validScore">--</div>
+          </div>
+        </div>
+      </div>
       <div id="summaryBlock" style="display: none;">
         <label>Summary</label>
         <div class="summary" id="summaryText"></div>
@@ -208,7 +233,7 @@
     const fileInput = document.getElementById("file");
     const keysInput = document.getElementById("keys");
     const aiCheck = document.getElementById("ai");
-    const btnAnalyze = document.getElementById("analyze");
+    const btnAnalyse = document.getElementById("analyse");
     const btnMock = document.getElementById("mock");
 
     function setBanner(type, message) {
@@ -232,10 +257,46 @@
     function hideLoading() {
       overlay.classList.remove("show");
     }
+    // ADD THIS function anywhere inside <script>
+
+    function renderScore(data) {
+      const score = data.quality_score?.final_score;
+      if (score === undefined) return;
+
+      document.getElementById("scoreCard").style.display = "block";
+
+      const scoreValue = document.getElementById("scoreValue");
+      const badge = document.getElementById("scoreBadge");
+
+      scoreValue.textContent = score;
+
+      document.getElementById("compScore").textContent = data.quality_score.completeness;
+      document.getElementById("uniqScore").textContent = data.quality_score.uniqueness;
+      document.getElementById("validScore").textContent = data.quality_score.validity;
+
+      let color, label;
+
+      if (score >= 85) {
+        color = "var(--ok)";
+        label = "High Quality";
+      } else if (score >= 70) {
+        color = "var(--warn)";
+        label = "Moderate";
+      } else {
+        color = "#c85050";
+        label = "Low Quality";
+      }
+
+      scoreValue.style.color = color;
+      badge.textContent = label;
+      badge.style.background = color + "22";
+      badge.style.color = color;
+    }
 
     function showResults(data) {
       jsonOut.textContent = JSON.stringify(data, null, 2);
       results.classList.add("visible");
+      renderScore(data);
 
       const src = data.llm_source;
       if (data.ai_summary) {
@@ -259,7 +320,7 @@
       }
     }
 
-    async function analyzeUpload(file, runAi) {
+    async function analyseUpload(file, runAi) {
       const fd = new FormData();
       fd.append("file", file);
       const params = new URLSearchParams();
@@ -267,7 +328,7 @@
       const k = keysInput.value.trim();
       if (k) params.set("key_columns", k);
 
-      const res = await fetch("/analyze/upload?" + params.toString(), {
+      const res = await fetch("/analyse/upload?" + params.toString(), {
         method: "POST",
         body: fd,
       });
@@ -286,8 +347,8 @@
       return body;
     }
 
-    async function analyzeText(csvText, runAi) {
-      const res = await fetch("/analyze/text", {
+    async function analyseText(csvText, runAi) {
+      const res = await fetch("/analyse/text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -313,7 +374,7 @@
       return body;
     }
 
-    btnAnalyze.addEventListener("click", async () => {
+    btnAnalyse.addEventListener("click", async () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) {
         setBanner("err", "Choose a CSV file first.");
@@ -321,17 +382,17 @@
       }
       const runAi = aiCheck.checked;
       setBanner("", "");
-      btnAnalyze.disabled = true;
+      btnAnalyse.disabled = true;
       showLoading(runAi);
       try {
-        const data = await analyzeUpload(file, runAi);
+        const data = await analyseUpload(file, runAi);
         showResults(data);
       } catch (e) {
         setBanner("err", e.message || String(e));
         results.classList.remove("visible");
       } finally {
         hideLoading();
-        btnAnalyze.disabled = false;
+        btnAnalyse.disabled = false;
       }
     });
 
@@ -344,7 +405,7 @@
         const res = await fetch("/sample/csv");
         if (!res.ok) throw new Error("Could not load mock CSV");
         const csvText = await res.text();
-        const data = await analyzeText(csvText, runAi);
+        const data = await analyseText(csvText, runAi);
         showResults(data);
       } catch (e) {
         setBanner("err", e.message || String(e));
