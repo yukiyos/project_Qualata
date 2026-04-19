@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qualata — Dataset analysis</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="/static/logo_transparent.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/logo_transparent.png">
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4d;
+      --text: #e8eef5;
+      --muted: #8b9cb3;
+      --accent: #5b9fd4;
+      --warn: #c9a227;
+      --ok: #3d9e6f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+    /* HEADER (added) */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .logo {
+      height: 28px;
+      width: 28px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    input[type="file"] { padding: 0.45rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #0a0e14;
+    }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--muted); }
+    .check input { width: 1rem; height: 1rem; }
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 14, 20, 0.82);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    #overlay.show { display: flex; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      max-width: 22rem;
+      text-align: center;
+    }
+    .spinner {
+      width: 2.5rem;
+      height: 2.5rem;
+      margin: 0 auto 1rem;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .modal h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+    .modal p { margin: 0; font-size: 0.85rem; color: var(--muted); }
+    .banner {
+      display: none;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      margin-bottom: 1rem;
+    }
+    .banner.warn {
+      display: block;
+      background: rgba(201, 162, 39, 0.12);
+      border: 1px solid rgba(201, 162, 39, 0.35);
+      color: #e8d48a;
+    }
+    .banner.ok {
+      display: block;
+      background: rgba(61, 158, 111, 0.12);
+      border: 1px solid rgba(61, 158, 111, 0.35);
+      color: #8fd4ae;
+    }
+    .banner.err {
+      display: block;
+      background: rgba(200, 80, 80, 0.12);
+      border: 1px solid rgba(200, 80, 80, 0.35);
+      color: #f0a8a8;
+    }
+    pre {
+      margin: 0;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .summary {
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    #results { display: none; }
+    #results.visible { display: block; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="overlay" aria-live="polite" aria-busy="true">
+    <div class="modal">
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="loadingTitle">Analysing dataset…</h2>
+      <p id="loadingDetail">Running quality checks. If the AI model is enabled, this can take up to a few minutes.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- UPDATED HEADER -->
+    <div class="header">
+      <img src="/static/logo_transparent.png" alt="Qualata Logo" class="logo">
+      <h1>Qualata</h1>
+    </div>
+
+    <p class="sub">Upload a CSV or load sample data. No <code>.env</code> file is required — optional vars: <code>OLLAMA_HOST</code>, <code>OLLAMA_MODEL</code>.</p>
+
+    <div id="banner" class="banner" role="status"></div>
+
+    <div class="panel">
+        <label for="file">CSV file</label>
+        <input type="file" id="file" accept=".csv,text/csv" />
+  
+        <label for="keys" style="margin-top: 1rem;">Key columns (optional, comma-separated)</label>
+        <input type="text" id="keys" placeholder="e.g. id, email" autocomplete="off" />
+  
+        <div class="row">
+          <label class="check">
+            <input type="checkbox" id="ai" checked />
+            Ask AI model for narrative summary (Ollama)
+          </label>
+        </div>
+  
+        <div class="row">
+          <button type="button" class="primary" id="analyse">Analyse dataset</button>
+          <button type="button" class="secondary" id="mock">Load mock CSV &amp; analyse</button>
+        </div>
+      </div>
+  
+      <div id="results" class="panel">
+        <h2 style="font-size: 1rem; margin: 0 0 0.75rem;">Results</h2>
+        <!-- ADD THIS inside #results (just under <h2>) -->
+        <div id="scoreCard" style="display:none; margin-bottom:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:0.8rem; color:var(--muted);">Data Quality Score</div>
+              <div id="scoreValue" style="font-size:2rem; font-weight:600;">--</div>
+            </div>
+            <div id="scoreBadge" style="padding:0.4rem 0.7rem; border-radius:999px; font-size:0.8rem;">--</div>
+          </div>
+  
+          <div style="display:flex; gap:0.75rem; margin-top:0.75rem;">
+            <div style="flex:1;">
+              <div style="font-size:0.75rem; color:var(--muted);">Completeness</div>
+              <div id="compScore">--</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:0.75rem; color:var(--muted);">Uniqueness</div>
+              <div id="uniqScore">--</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:0.75rem; color:var(--muted);">Validity</div>
+              <div id="validScore">--</div>
+            </div>
+          </div>
+        </div>
+        <div id="summaryBlock" style="display: none;">
+          <label>Summary</label>
+          <div class="summary" id="summaryText"></div>
+        </div>
+        <label>Full JSON</label>
+        <pre id="jsonOut"></pre>
+      </div>
+    </div>
+  
+    <script>
+      const overlay = document.getElementById("overlay");
+      const loadingTitle = document.getElementById("loadingTitle");
+      const loadingDetail = document.getElementById("loadingDetail");
+      const banner = document.getElementById("banner");
+      const results = document.getElementById("results");
+      const jsonOut = document.getElementById("jsonOut");
+      const summaryBlock = document.getElementById("summaryBlock");
+      const summaryText = document.getElementById("summaryText");
+      const fileInput = document.getElementById("file");
+      const keysInput = document.getElementById("keys");
+      const aiCheck = document.getElementById("ai");
+      const btnAnalyse = document.getElementById("analyse");
+      const btnMock = document.getElementById("mock");
+  
+      function setBanner(type, message) {
+        banner.className = "banner " + type;
+        banner.textContent = message;
+        banner.style.display = message ? "block" : "none";
+      }
+  
+      function showLoading(aiEnabled) {
+        overlay.classList.add("show");
+        if (aiEnabled) {
+          loadingTitle.textContent = "Analysing dataset…";
+          loadingDetail.textContent =
+            "Running checks and waiting for the AI model (Ollama). This can take up to a few minutes on first run.";
+        } else {
+          loadingTitle.textContent = "Analysing dataset…";
+          loadingDetail.textContent = "Running built-in quality analysis (AI summary disabled).";
+        }
+      }
+  
+      function hideLoading() {
+        overlay.classList.remove("show");
+      }
+      // ADD THIS function anywhere inside <script>
+  
+      function renderScore(data) {
+        const score = data.quality_score?.final_score;
+        if (score === undefined) return;
+  
+        document.getElementById("scoreCard").style.display = "block";
+  
+        const scoreValue = document.getElementById("scoreValue");
+        const badge = document.getElementById("scoreBadge");
+  
+        scoreValue.textContent = score;
+  
+        document.getElementById("compScore").textContent = data.quality_score.completeness;
+        document.getElementById("uniqScore").textContent = data.quality_score.uniqueness;
+        document.getElementById("validScore").textContent = data.quality_score.validity;
+  
+        let color, label;
+  
+        if (score >= 85) {
+          color = "var(--ok)";
+          label = "High Quality";
+        } else if (score >= 70) {
+          color = "var(--warn)";
+          label = "Moderate";
+        } else {
+          color = "#c85050";
+          label = "Low Quality";
+        }
+  
+        scoreValue.style.color = color;
+        badge.textContent = label;
+        badge.style.background = color + "22";
+        badge.style.color = color;
+      }
+  
+      function showResults(data) {
+        jsonOut.textContent = JSON.stringify(data, null, 2);
+        results.classList.add("visible");
+        renderScore(data);
+  
+        const src = data.llm_source;
+        if (data.ai_summary) {
+          summaryBlock.style.display = "block";
+          summaryText.textContent = data.ai_summary;
+        } else {
+          summaryBlock.style.display = "none";
+        }
+  
+        if (src === "ollama") {
+          setBanner("ok", "Summary produced by your local AI model (Ollama).");
+        } else if (src === "fallback") {
+          setBanner(
+            "warn",
+            "The AI model did not respond in time or Ollama is not running. You still get a full analysis using built-in logic only."
+          );
+        } else if (src === "disabled") {
+          setBanner("ok", "AI summary was turned off; results use built-in analysis only.");
+        } else {
+          setBanner("", "");
+        }
+      }
+  
+      async function analyseUpload(file, runAi) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const params = new URLSearchParams();
+        params.set("run_ai_summary", runAi ? "true" : "false");
+        const k = keysInput.value.trim();
+        if (k) params.set("key_columns", k);
+  
+        const res = await fetch("/analyse/upload?" + params.toString(), {
+          method: "POST",
+          body: fd,
+        });
+        const text = await res.text();
+        let body;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          throw new Error(text || res.statusText || "Invalid response");
+        }
+        if (!res.ok) {
+          const detail = body.detail;
+          const msg = typeof detail === "string" ? detail : JSON.stringify(detail);
+          throw new Error(msg || "Request failed");
+        }
+        return body;
+      }
+  
+      async function analyseText(csvText, runAi) {
+        const res = await fetch("/analyse/text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            csv_text: csvText,
+            key_columns: keysInput.value.trim()
+              ? keysInput.value.split(",").map((s) => s.trim()).filter(Boolean)
+              : null,
+            run_ai_summary: runAi,
+          }),
+        });
+        const text = await res.text();
+        let body;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          throw new Error(text || res.statusText || "Invalid response");
+        }
+        if (!res.ok) {
+          const detail = body.detail;
+          const msg = typeof detail === "string" ? detail : JSON.stringify(detail);
+          throw new Error(msg || "Request failed");
+        }
+        return body;
+      }
+  
+      btnAnalyse.addEventListener("click", async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          setBanner("err", "Choose a CSV file first.");
+          return;
+        }
+        const runAi = aiCheck.checked;
+        setBanner("", "");
+        btnAnalyse.disabled = true;
+        showLoading(runAi);
+        try {
+          const data = await analyseUpload(file, runAi);
+          showResults(data);
+        } catch (e) {
+          setBanner("err", e.message || String(e));
+          results.classList.remove("visible");
+        } finally {
+          hideLoading();
+          btnAnalyse.disabled = false;
+        }
+      });
+  
+      btnMock.addEventListener("click", async () => {
+        const runAi = aiCheck.checked;
+        setBanner("", "");
+        btnMock.disabled = true;
+        showLoading(runAi);
+        try {
+          const res = await fetch("/sample/csv");
+          if (!res.ok) throw new Error("Could not load mock CSV");
+          const csvText = await res.text();
+          const data = await analyseText(csvText, runAi);
+          showResults(data);
+        } catch (e) {
+          setBanner("err", e.message || String(e));
+          results.classList.remove("visible");
+        } finally {
+          hideLoading();
+          btnMock.disabled = false;
+        }
+      });
+    </script>
+  </body>
+  </html>
+       

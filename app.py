@@ -11,7 +11,9 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
 
 _APP_DIR = Path(__file__).resolve().parent
 # Optional: create .env with OLLAMA_HOST and OLLAMA_MODEL. If missing, defaults match a local Ollama install.
@@ -27,6 +29,8 @@ SAMPLE_CSV = """id,customer,amount,region,signup_date
 """
 
 app = FastAPI(title="Qualata API", version="0.1.0")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 class AnalyseTextRequest(BaseModel):
@@ -60,12 +64,55 @@ class OllamaInsightsService:
         }
         prompt = (
             "You are a senior data analyst. Given this dataset analysis (CSV or JSON), write a clear, concise summary:\n"
+            "STRICT RULES:\n"
+            "- Do NOT use markdown\n"
+            "- Do NOT use asterisks (*), hashes (#)\n"
+            "- Use simple sentences separated by line breaks\n"
+            "- formatting characters\n"
+            "- Use titles and subheadings to structure the summary\n"
             "1) Brief overview of the dataset\n"
             "2) Main data quality concerns\n"
             "3) What duplicate findings suggest\n"
             "4) 2–3 concrete next steps\n\n"
             f"{json.dumps(slim, ensure_ascii=False, default=str)}"
         )
+
+        
+        # prompt = ("""
+        #     You are a data quality engine. Be concise and structured.
+
+        #     Return ONLY this format:
+
+        #     OVERVIEW:
+        #     <1 sentence with dataset size + quality score>
+
+        #     QUALITY:
+        #     - Score: <final_score>/100
+        #     - Biggest issue: <single most critical issue>
+
+        #     ISSUES:
+        #     - <max 3 bullet points, ranked by severity>
+
+        #     DUPLICATES:
+        #     - Exact duplicates: <count> (<rate>%)
+        #     - Key duplicates: <count or none>
+
+        #     ACTIONS:
+        #     - <max 3 specific, practical actions>
+
+        #     RULES:
+        #     - No fluff
+        #     - No generic advice
+        #     - No repetition
+        #     - Max 120 words total
+
+        #     DATA:
+        #     {json.dumps(slim, ensure_ascii=False, default=str)}
+        #     """
+        # )
+
+        
+
         content = self._ollama_chat(prompt)
         text = (content or "").strip()
         if text:
@@ -290,9 +337,9 @@ def root() -> dict[str, str]:
 
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> HTMLResponse:
-    path = _APP_DIR / "static" / "index.html"
+    path = _APP_DIR / "static" / "index2.html"
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="UI not found (static/index.html).")
+        raise HTTPException(status_code=404, detail="UI not found (static/index2.html).")
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 

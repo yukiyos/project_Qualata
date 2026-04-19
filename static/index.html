@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Qualata — Dataset analysis</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="/static/Qualata_logo.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/Qualata_logo.png">
   <style>
     :root {
       --bg: #0f1419;
@@ -245,11 +248,11 @@
     function showLoading(aiEnabled) {
       overlay.classList.add("show");
       if (aiEnabled) {
-        loadingTitle.textContent = "Analyzing dataset…";
+        loadingTitle.textContent = "Analysing dataset…";
         loadingDetail.textContent =
           "Running checks and waiting for the AI model (Ollama). This can take up to a few minutes on first run.";
       } else {
-        loadingTitle.textContent = "Analyzing dataset…";
+        loadingTitle.textContent = "Analysing dataset…";
         loadingDetail.textContent = "Running built-in quality analysis (AI summary disabled).";
       }
     }
@@ -418,3 +421,4 @@
   </script>
 </body>
 </html>
+     
