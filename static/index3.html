@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qualata — Data Intelligence</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/qualata_logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    /* ── Design tokens ── */
+    :root {
+      --bg:       #0f1419;
+      --panel:    #1a2332;
+      --border:   #2d3a4d;
+      --text:     #e8eef5;
+      --muted:    #8b9cb3;
+      --accent:   #5b9fd4;
+      --accent2:  #3ec9d6;
+      --warn:     #c9a227;
+      --ok:       #3d9e6f;
+      --err:      #c85050;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ════ NAV ════ */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(15,20,25,0.93);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex; align-items: center;
+      height: 56px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 0.55rem;
+      margin-right: 2.5rem; text-decoration: none; cursor: pointer;
+    }
+    .nav-brand img { height: 26px; width: 26px; }
+    .nav-brand span { font-size: 1rem; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+    .nav-tabs { display: flex; }
+    .nav-tab {
+      cursor: pointer; padding: 0 1.1rem; height: 56px;
+      display: flex; align-items: center;
+      font-size: 0.875rem; font-weight: 500;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ════ PAGE ROUTING ════ */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ════ SHARED PANEL / FORM STYLES ════ */
+    .wrap { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem;
+    }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input[type="text"], input[type="file"] {
+      width: 100%; padding: 0.5rem 0.65rem;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text);
+      font-size: 0.9rem; font-family: inherit;
+    }
+    input[type="file"] { padding: 0.45rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1rem; }
+    button {
+      cursor: pointer; border: none; border-radius: 8px;
+      padding: 0.55rem 1rem; font-size: 0.9rem; font-weight: 500;
+      font-family: inherit; transition: opacity 0.15s, transform 0.15s;
+    }
+    button:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    button.primary { background: var(--accent); color: #0a0e14; }
+    button.primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    button.secondary {
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--muted); }
+    .check input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+
+    .banner {
+      display: none; padding: 0.75rem 1rem;
+      border-radius: 8px; font-size: 0.88rem; margin-bottom: 1rem;
+    }
+    .banner.warn { display:block; background:rgba(201,162,39,.12); border:1px solid rgba(201,162,39,.35); color:#e8d48a; }
+    .banner.ok   { display:block; background:rgba(61,158,111,.12);  border:1px solid rgba(61,158,111,.35); color:#8fd4ae; }
+    .banner.err  { display:block; background:rgba(200,80,80,.12);   border:1px solid rgba(200,80,80,.35);  color:#f0a8a8; }
+
+    pre {
+      margin:0; padding:1rem;
+      background:var(--bg); border-radius:8px; border:1px solid var(--border);
+      font-size:0.78rem; font-family:'DM Mono',monospace;
+      overflow-x:auto; white-space:pre-wrap; word-break:break-word;
+    }
+    .summary-box {
+      font-size:0.9rem; white-space:pre-wrap; line-height:1.7;
+      padding:1rem; background:var(--bg); border-radius:8px; border:1px solid var(--border);
+      margin-bottom:1rem;
+    }
+    code { font-family:'DM Mono',monospace; font-size:0.85em; }
+
+    /* ════ LOADING OVERLAY ════ */
+    #overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(10,14,20,.82); z-index:200;
+      align-items:center; justify-content:center; padding:1rem;
+    }
+    #overlay.show { display:flex; }
+    .modal {
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:12px; padding:1.75rem 1.5rem;
+      max-width:22rem; text-align:center;
+    }
+    .spinner {
+      width:2.5rem; height:2.5rem; margin:0 auto 1rem;
+      border:3px solid var(--border); border-top-color:var(--accent);
+      border-radius:50%; animation:spin .85s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .modal h2 { font-size:1rem; margin:0 0 0.5rem; }
+    .modal p  { margin:0; font-size:0.85rem; color:var(--muted); }
+
+    /* ════ HOME ════ */
+    .home-hero {
+      position:relative; overflow:hidden;
+      padding:6rem 1.5rem 4.5rem; text-align:center;
+    }
+    .home-hero::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background:
+        radial-gradient(ellipse 80% 55% at 50% -5%, rgba(91,159,212,.17) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 78% 55%, rgba(62,201,214,.08) 0%, transparent 60%);
+    }
+    .hero-logo {
+      width:72px; height:72px; margin:0 auto 1.5rem; display:block;
+      filter:drop-shadow(0 0 22px rgba(91,159,212,.5));
+      animation:float 4s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .hero-title {
+      font-size:clamp(2.1rem,5vw,3.3rem); font-weight:600;
+      letter-spacing:-.04em; line-height:1.15; margin-bottom:1rem;
+    }
+    .hero-title span {
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .hero-sub { max-width:38rem; margin:0 auto 2.5rem; font-size:1.05rem; color:var(--muted); font-weight:300; }
+    .hero-cta { display:inline-flex; gap:.75rem; flex-wrap:wrap; justify-content:center; }
+    .btn-hero-primary {
+      cursor:pointer; padding:.7rem 1.5rem; border-radius:8px; border:none;
+      background:var(--accent); color:#0a0e14;
+      font-size:.9rem; font-weight:600; font-family:inherit;
+      transition:opacity .15s,transform .15s;
+    }
+    .btn-hero-primary:hover { opacity:.88; transform:translateY(-1px); }
+    .btn-hero-outline {
+      cursor:pointer; padding:.7rem 1.5rem; border-radius:8px;
+      border:1px solid var(--border); background:transparent;
+      color:var(--accent); font-size:.9rem; font-weight:500; font-family:inherit;
+      transition:border-color .15s,transform .15s;
+    }
+    .btn-hero-outline:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .stats-row {
+      border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+      background:var(--panel); padding:2.25rem 1.5rem; margin-bottom:3.5rem;
+    }
+    .stats-inner {
+      max-width:56rem; margin:0 auto;
+      display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center;
+    }
+    .stat-item { padding:.5rem 2rem; }
+    .stat-num {
+      font-size:2rem; font-weight:600;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .stat-label { font-size:.82rem; color:var(--muted); margin-top:.2rem; }
+    .features {
+      max-width:64rem; margin:0 auto; padding:0 1.5rem 4.5rem;
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(17rem,1fr)); gap:1rem;
+    }
+    .feat-card {
+      background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:1.5rem;
+      transition:border-color .2s,transform .2s;
+    }
+    .feat-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+    .feat-icon {
+      width:38px; height:38px; border-radius:9px;
+      background:rgba(91,159,212,.12); display:flex; align-items:center; justify-content:center;
+      margin-bottom:.85rem; font-size:1.1rem;
+    }
+    .feat-title { font-size:.95rem; font-weight:600; margin-bottom:.4rem; }
+    .feat-desc  { font-size:.85rem; color:var(--muted); line-height:1.55; }
+    .how { max-width:52rem; margin:0 auto; padding:0 1.5rem 5rem; }
+    .section-title { font-size:1.35rem; font-weight:600; letter-spacing:-.02em; margin-bottom:.35rem; }
+    .section-sub   { font-size:.9rem; color:var(--muted); margin-bottom:1.75rem; }
+    .step {
+      display:flex; gap:1.25rem; padding:1.25rem 0;
+      border-bottom:1px solid var(--border);
+    }
+    .step:last-child { border-bottom:none; }
+    .step-num {
+      flex-shrink:0; width:32px; height:32px; border-radius:50%;
+      background:rgba(91,159,212,.13); border:1px solid rgba(91,159,212,.3);
+      color:var(--accent); display:flex; align-items:center; justify-content:center;
+      font-size:.8rem; font-weight:600; font-family:'DM Mono',monospace;
+    }
+    .step-body h3 { font-size:.95rem; font-weight:600; margin-bottom:.25rem; }
+    .step-body p  { font-size:.85rem; color:var(--muted); }
+
+    /* ════ SUMMARISE ════ */
+    #results          { display:none; }
+    #results.visible  { display:block; }
+    #scoreCard        { display:none; margin-bottom:1.25rem; }
+    #scoreCard.visible{ display:block; }
+    #summaryBlock     { display:none; margin-top:1rem; }
+
+    /* issues list */
+    .issues-list {
+      list-style:none; display:flex; flex-direction:column; gap:.4rem; margin-top:.5rem;
+    }
+    .issues-list li {
+      font-size:.85rem; padding:.4rem .65rem;
+      background:rgba(200,80,80,.08); border-left:3px solid var(--err);
+      border-radius:4px; color:#f0a8a8;
+    }
+    .issues-list li.none {
+      background:rgba(61,158,111,.08); border-left-color:var(--ok); color:#8fd4ae;
+    }
+    /* key facts */
+    .facts-list { list-style:none; display:flex; flex-direction:column; gap:.35rem; margin-top:.5rem; }
+    .facts-list li {
+      font-size:.85rem; padding:.35rem .65rem;
+      background:rgba(91,159,212,.07); border-left:3px solid var(--accent);
+      border-radius:4px; color:var(--text);
+      font-family:'DM Mono',monospace;
+    }
+    /* duplicate report */
+    .dup-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+      gap:.6rem; margin-top:.5rem;
+    }
+    .dup-cell {
+      background:var(--bg); border:1px solid var(--border); border-radius:6px;
+      padding:.6rem .75rem;
+    }
+    .dup-cell .dc-label { font-size:.72rem; color:var(--muted); }
+    .dup-cell .dc-val   { font-size:1.1rem; font-weight:600; margin-top:.1rem; }
+
+    /* send-to-vis button */
+    #sendToVis { display:none; }
+    #sendToVis.visible { display:inline-flex; align-items:center; gap:.4rem; }
+
+    /* ════ VISUALISE ════ */
+    .vis-wrap { max-width:62rem; margin:0 auto; padding:2rem 1.25rem; }
+    .vis-upload-zone {
+      border:2px dashed var(--border); border-radius:12px;
+      padding:2.25rem; text-align:center; cursor:pointer;
+      transition:border-color .2s,background .2s; margin-bottom:1.5rem;
+      position:relative;
+    }
+    .vis-upload-zone:hover,.vis-upload-zone.drag {
+      border-color:var(--accent); background:rgba(91,159,212,.04);
+    }
+    .vis-upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+    .vis-upload-icon  { font-size:1.9rem; margin-bottom:.4rem; }
+    .vis-upload-title { font-size:.95rem; font-weight:600; margin-bottom:.25rem; }
+    .vis-upload-sub   { font-size:.8rem; color:var(--muted); }
+    .vis-pill {
+      display:inline-block; padding:.2rem .65rem; border-radius:999px;
+      background:rgba(91,159,212,.13); border:1px solid rgba(91,159,212,.25);
+      font-size:.75rem; color:var(--accent); margin-top:.6rem;
+    }
+    .vis-controls {
+      background:var(--panel); border:1px solid var(--border); border-radius:10px;
+      padding:1rem 1.25rem; margin-bottom:1.25rem;
+      display:flex; flex-wrap:wrap; gap:.85rem; align-items:flex-end;
+    }
+    .vis-field { display:flex; flex-direction:column; gap:.28rem; min-width:130px; }
+    .vis-field label { font-size:.77rem; color:var(--muted); }
+    .vis-field select {
+      padding:.42rem .6rem; border-radius:6px;
+      border:1px solid var(--border); background:var(--bg);
+      color:var(--text); font-size:.87rem; font-family:inherit;
+    }
+    .vis-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr));
+      gap:1rem;
+    }
+    .chart-card {
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:12px; padding:1.25rem;
+    }
+    .chart-card h3 { font-size:.8rem; color:var(--muted); margin-bottom:.75rem; font-weight:500; }
+    .chart-card canvas { max-height:255px; }
+    #vis-empty { text-align:center; padding:4rem 1rem; color:var(--muted); }
+    #vis-empty .big { font-size:2.5rem; margin-bottom:.5rem; }
+    #vis-empty p { font-size:.9rem; }
+    #vis-charts { display:none; }
+    #vis-charts.visible { display:block; }
+    .data-table-wrap { overflow-x:auto; margin-top:.25rem; }
+    table { width:100%; border-collapse:collapse; font-size:.78rem; font-family:'DM Mono',monospace; }
+    th {
+      text-align:left; padding:.5rem .7rem;
+      background:var(--bg); color:var(--muted); font-weight:500;
+      border-bottom:1px solid var(--border); white-space:nowrap;
+    }
+    td { padding:.42rem .7rem; border-bottom:1px solid rgba(45,58,77,.45); }
+    tr:last-child td { border-bottom:none; }
+    td.null-cell { color:var(--err); font-style:italic; }
+
+    /* profile columns table */
+    .profile-table-wrap { overflow-x:auto; margin-top:.5rem; }
+    .profile-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .profile-table th {
+      text-align:left; padding:.4rem .7rem;
+      background:var(--bg); color:var(--muted); font-weight:500;
+      border-bottom:1px solid var(--border);
+    }
+    .profile-table td { padding:.38rem .7rem; border-bottom:1px solid rgba(45,58,77,.4); }
+    .null-badge {
+      display:inline-block; padding:.1rem .4rem; border-radius:4px; font-size:.72rem;
+    }
+    .null-badge.high { background:rgba(200,80,80,.15); color:#f0a8a8; }
+    .null-badge.low  { background:rgba(61,158,111,.12); color:#8fd4ae; }
+    .null-badge.zero { background:rgba(91,159,212,.1);  color:var(--accent); }
+
+    @media(max-width:600px){
+      .stat-item{padding:.5rem 1rem}
+      .hero-title{font-size:1.85rem}
+      .vis-controls{gap:.6rem}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ OVERLAY ══ -->
+<div id="overlay" aria-live="polite" aria-busy="true">
+  <div class="modal">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 id="loadingTitle">Analysing dataset…</h2>
+    <p id="loadingDetail">Running quality checks. If AI is enabled this may take a few minutes.</p>
+  </div>
+</div>
+
+<!-- ══ NAV ══ -->
+<nav>
+  <div class="nav-brand" onclick="switchTab('home')">
+    <img src="/static/qualata_logo.png" alt="Qualata" onerror="this.style.display='none'">
+    <span>Qualata</span>
+  </div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-tab="home"      onclick="switchTab('home')">Home</div>
+    <div class="nav-tab"        data-tab="summarise" onclick="switchTab('summarise')">Summarise</div>
+    <div class="nav-tab"        data-tab="visualise" onclick="switchTab('visualise')">Visualise</div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     HOME
+══════════════════════════════════════ -->
+<div id="page-home" class="page active">
+  <div class="home-hero">
+    <img src="/static/qualata_logo.png" class="hero-logo" alt="Qualata"
+         onerror="this.style.display='none'">
+    <h1 class="hero-title">Your data,<br><span>fully understood.</span></h1>
+    <p class="hero-sub">
+      Qualata is a data-intelligence platform that analyses, summarises, and visualises
+      CSV datasets — instantly surfacing quality issues, patterns, and insights so your
+      team can act with confidence.
+    </p>
+    <div class="hero-cta">
+      <button class="btn-hero-primary" onclick="switchTab('summarise')">Analyse a dataset</button>
+      <button class="btn-hero-outline" onclick="switchTab('visualise')">Explore visuals</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stats-inner">
+      <div class="stat-item"><div class="stat-num">100%</div><div class="stat-label">Local &amp; private</div></div>
+      <div class="stat-item"><div class="stat-num">3</div><div class="stat-label">Quality dimensions scored</div></div>
+      <div class="stat-item"><div class="stat-num">AI</div><div class="stat-label">Narrative summaries via Ollama</div></div>
+      <div class="stat-item"><div class="stat-num">CSV</div><div class="stat-label">Zero-config file support</div></div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feat-card">
+      <div class="feat-icon">🔍</div>
+      <div class="feat-title">Data Quality Scoring</div>
+      <div class="feat-desc">Completeness, uniqueness, and validity scored automatically — with a single composite quality number per dataset.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🤖</div>
+      <div class="feat-title">AI Narrative Summaries</div>
+      <div class="feat-desc">Connect your local Ollama model to generate plain-English explanations of what your data contains and where issues lie.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">Instant Visualisations</div>
+      <div class="feat-desc">Upload any CSV and generate bar charts, distribution plots, and a full data-preview table — no code required.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔒</div>
+      <div class="feat-title">Fully Local</div>
+      <div class="feat-desc">No data leaves your machine. Qualata runs entirely on your infrastructure — no cloud APIs, no tracking, no storage.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">⚡</div>
+      <div class="feat-title">Zero Configuration</div>
+      <div class="feat-desc">No <code>.env</code> file required. Drop in a CSV and get results immediately. Ollama AI connects with one env var.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🗂️</div>
+      <div class="feat-title">Key Column Detection</div>
+      <div class="feat-desc">Specify key columns like IDs or emails to get targeted duplicate and integrity checks on the fields that matter most.</div>
+    </div>
+  </div>
+
+  <div class="how">
+    <div class="section-title">How it works</div>
+    <div class="section-sub">Three steps from raw data to actionable insight.</div>
+    <div>
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <h3>Upload your CSV</h3>
+          <p>Drag in any CSV file or load the built-in mock dataset to get started immediately. No schema definition needed.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <h3>Run the analysis</h3>
+          <p>Qualata calculates completeness, uniqueness, and validity scores, then optionally asks your local Ollama model for a narrative explanation.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <h3>Explore &amp; visualise</h3>
+          <p>Switch to the Visualise tab — or click "Send to Visualise" after analysis — to generate charts from your columns instantly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SUMMARISE  — wired to app.py exactly
+     POST /analyse/upload  (multipart, query params: run_ai_summary, key_columns)
+     POST /analyse/text    (JSON body: csv_text, key_columns[], run_ai_summary)
+     GET  /sample/csv      (plain-text CSV)
+     Response shape:
+       profile.{rows, columns, column_names, dtypes, null_pct_by_column}
+       quality_score.{final_score, completeness, uniqueness, validity}
+       issues[]
+       duplicate_report.{exact_duplicate_count, exact_duplicate_rate_pct,
+                         key_columns[], key_duplicate_count, key_duplicate_rate_pct,
+                         sample_key_duplicate_groups[]}
+       key_facts[]
+       ai_summary | null
+       llm_source  ("ollama" | "fallback" | "disabled")
+══════════════════════════════════════ -->
+<div id="page-summarise" class="page">
+  <div class="wrap">
+
+    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.25rem;">
+      <img src="/static/qualata_logo.png" style="height:26px;width:26px;" alt=""
+           onerror="this.style.display='none'">
+      <h1 style="font-size:1.3rem;font-weight:600;letter-spacing:-.02em;">Dataset Analysis</h1>
+    </div>
+    <p style="color:var(--muted);font-size:.875rem;margin-bottom:1.5rem;">
+      Upload a CSV or load sample data. No <code>.env</code> required — optional:
+      <code>OLLAMA_HOST</code>, <code>OLLAMA_MODEL</code>.
+    </p>
+
+    <div id="sum-banner" class="banner" role="status"></div>
+
+    <!-- INPUT PANEL -->
+    <div class="panel">
+      <label for="sum-file">CSV file</label>
+      <input type="file" id="sum-file" accept=".csv,text/csv" />
+
+      <label for="sum-keys" style="margin-top:1rem;">
+        Key columns <span style="color:var(--muted);font-weight:300;">(optional, comma-separated)</span>
+      </label>
+      <input type="text" id="sum-keys" placeholder="e.g. id, email" autocomplete="off" />
+
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="sum-ai" checked />
+          Ask AI model for narrative summary (Ollama)
+        </label>
+      </div>
+      <div class="row">
+        <button class="primary"   id="sum-analyse">Analyse dataset</button>
+        <button class="secondary" id="sum-mock">Load mock CSV &amp; analyse</button>
+      </div>
+    </div>
+
+    <!-- RESULTS PANEL — only visible after a successful response -->
+    <div id="results" class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;">
+        <h2 style="font-size:1rem;font-weight:600;">Results</h2>
+        <!-- Sends the last raw CSV text into the Visualise tab -->
+        <button class="secondary" id="sendToVis" onclick="sendCurrentCsvToVis()">
+          📊 Send to Visualise
+        </button>
+      </div>
+
+      <!-- ① Quality score card -->
+      <div id="scoreCard">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+          <div>
+            <div style="font-size:.78rem;color:var(--muted);">Overall Quality Score</div>
+            <div id="scoreValue" style="font-size:2.2rem;font-weight:600;line-height:1.1;">--</div>
+            <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem;">out of 100</div>
+          </div>
+          <div id="scoreBadge" style="padding:.4rem .8rem;border-radius:999px;font-size:.8rem;font-weight:500;align-self:center;">--</div>
+        </div>
+        <div style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap;">
+          <div style="flex:1;min-width:7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .8rem;">
+            <div style="font-size:.72rem;color:var(--muted);">Completeness</div>
+            <div id="compScore" style="font-size:1.3rem;font-weight:600;margin-top:.15rem;">--</div>
+          </div>
+          <div style="flex:1;min-width:7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .8rem;">
+            <div style="font-size:.72rem;color:var(--muted);">Uniqueness</div>
+            <div id="uniqScore" style="font-size:1.3rem;font-weight:600;margin-top:.15rem;">--</div>
+          </div>
+          <div style="flex:1;min-width:7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .8rem;">
+            <div style="font-size:.72rem;color:var(--muted);">Validity</div>
+            <div id="validScore" style="font-size:1.3rem;font-weight:600;margin-top:.15rem;">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② Column profile -->
+      <div style="margin-top:1.25rem;">
+        <label>Column profile
+          <span id="profileMeta" style="font-weight:300;color:var(--muted);"></span>
+        </label>
+        <div class="profile-table-wrap">
+          <table class="profile-table">
+            <thead><tr>
+              <th>Column</th><th>Type</th><th>Missing %</th>
+            </tr></thead>
+            <tbody id="profileTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ③ Issues detected -->
+      <div style="margin-top:1.25rem;">
+        <label>Issues detected</label>
+        <ul id="issuesList" class="issues-list"></ul>
+      </div>
+
+      <!-- ④ Duplicate report -->
+      <div style="margin-top:1.25rem;">
+        <label>Duplicate report</label>
+        <div class="dup-grid" id="dupGrid"></div>
+        <div id="dupKeyDupes" style="display:none;margin-top:.75rem;">
+          <label style="margin-bottom:.4rem;">Sample key-column duplicate groups</label>
+          <pre id="dupKeyPre"></pre>
+        </div>
+      </div>
+
+      <!-- ⑤ Key facts -->
+      <div style="margin-top:1.25rem;">
+        <label>Key facts</label>
+        <ul id="factsList" class="facts-list"></ul>
+      </div>
+
+      <!-- ⑥ AI summary -->
+      <div id="summaryBlock">
+        <label>AI narrative summary</label>
+        <div class="summary-box" id="summaryText"></div>
+      </div>
+
+      <!-- ⑦ Full JSON (collapsed-friendly) -->
+      <div style="margin-top:1.25rem;">
+        <label>Full JSON response</label>
+        <pre id="jsonOut"></pre>
+      </div>
+    </div><!-- /#results -->
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     VISUALISE — standalone CSV charts
+     Also accepts data pushed from Summarise via sendCurrentCsvToVis()
+══════════════════════════════════════ -->
+<div id="page-visualise" class="page">
+  <div class="vis-wrap">
+    <div style="margin-bottom:1.5rem;">
+      <h2 style="font-size:1.2rem;font-weight:600;letter-spacing:-.02em;">Visualise</h2>
+      <p style="font-size:.875rem;color:var(--muted);margin-top:.2rem;">
+        Upload a CSV to auto-generate charts — or analyse first in Summarise and click "Send to Visualise".
+      </p>
+    </div>
+
+    <div class="vis-upload-zone" id="visDropZone">
+      <input type="file" id="visFile" accept=".csv,text/csv">
+      <div class="vis-upload-icon">📂</div>
+      <div class="vis-upload-title" id="visUploadTitle">Drop a CSV here, or click to browse</div>
+      <div class="vis-upload-sub">Data stays local — nothing is uploaded to any server.</div>
+      <div id="visPill" class="vis-pill" style="display:none;"></div>
+    </div>
+
+    <div id="vis-empty">
+      <div class="big">📈</div>
+      <p>Upload a CSV above to generate charts automatically.</p>
+    </div>
+
+    <div id="vis-charts">
+      <!-- chart controls -->
+      <div class="vis-controls">
+        <div class="vis-field">
+          <label for="visXCol">Category / X-axis</label>
+          <select id="visXCol"></select>
+        </div>
+        <div class="vis-field">
+          <label for="visYCol">Value / Y-axis</label>
+          <select id="visYCol"></select>
+        </div>
+        <div class="vis-field">
+          <label for="visChartType">Chart type</label>
+          <select id="visChartType">
+            <option value="bar">Bar</option>
+            <option value="line">Line</option>
+            <option value="pie">Pie</option>
+            <option value="doughnut">Doughnut</option>
+          </select>
+        </div>
+        <button class="primary" onclick="renderCustomChart()">Update chart</button>
+      </div>
+
+      <div class="vis-grid">
+        <div class="chart-card" style="grid-column:1/-1;">
+          <h3 id="customChartTitle">Custom chart</h3>
+          <canvas id="customChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3 id="distChartTitle">Value distribution — top 10</h3>
+          <canvas id="distChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Missing values per column</h3>
+          <canvas id="missingChart"></canvas>
+        </div>
+        <div class="chart-card" id="statsChartCard">
+          <h3>Numeric column max values</h3>
+          <canvas id="statsChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Row completeness</h3>
+          <canvas id="rowChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-top:1rem;">
+        <h3>Data preview <span id="previewMeta" style="font-weight:300;color:var(--muted);"></span></h3>
+        <div class="data-table-wrap" id="dataTableWrap"></div>
+      </div>
+    </div><!-- /#vis-charts -->
+
+  </div>
+</div><!-- /#page-visualise -->
+
+<script>
+/* ═══════════════════════════════════════════════
+   TAB ROUTING
+═══════════════════════════════════════════════ */
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ═══════════════════════════════════════════════
+   SUMMARISE — DOM refs
+═══════════════════════════════════════════════ */
+const overlay      = document.getElementById('overlay');
+const loadTitle    = document.getElementById('loadingTitle');
+const loadDetail   = document.getElementById('loadingDetail');
+const sumBanner    = document.getElementById('sum-banner');
+const resultsDiv   = document.getElementById('results');
+const jsonOut      = document.getElementById('jsonOut');
+const summaryBlock = document.getElementById('summaryBlock');
+const summaryText  = document.getElementById('summaryText');
+const sumFile      = document.getElementById('sum-file');
+const sumKeys      = document.getElementById('sum-keys');
+const sumAi        = document.getElementById('sum-ai');
+const btnAnalyse   = document.getElementById('sum-analyse');
+const btnMock      = document.getElementById('sum-mock');
+const sendToVisBtn = document.getElementById('sendToVis');
+
+// Holds the last raw CSV text so we can push it to Visualise
+let lastCsvText = null;
+
+/* ── helpers ── */
+function setBanner(el, type, msg) {
+  el.className = 'banner' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+function showOverlay(aiEnabled) {
+  overlay.classList.add('show');
+  loadTitle.textContent  = 'Analysing dataset…';
+  loadDetail.textContent = aiEnabled
+    ? 'Running quality checks and waiting for the Ollama model. This can take a few minutes on first run.'
+    : 'Running built-in quality analysis (AI summary disabled).';
+}
+function hideOverlay() { overlay.classList.remove('show'); }
+
+/* ── render score card ──
+   Reads: data.quality_score.{final_score, completeness, uniqueness, validity}
+*/
+function renderScoreCard(data) {
+  const qs = data.quality_score;
+  if (!qs || qs.final_score === undefined) return;
+
+  const scoreCard = document.getElementById('scoreCard');
+  scoreCard.classList.add('visible');
+
+  const scoreEl = document.getElementById('scoreValue');
+  const badge   = document.getElementById('scoreBadge');
+  scoreEl.textContent = qs.final_score;
+  document.getElementById('compScore').textContent = qs.completeness;
+  document.getElementById('uniqScore').textContent = qs.uniqueness;
+  document.getElementById('validScore').textContent = qs.validity;
+
+  let color, label;
+  if (qs.final_score >= 85)      { color = 'var(--ok)';  label = '✓ High Quality'; }
+  else if (qs.final_score >= 70) { color = 'var(--warn)'; label = '⚠ Moderate'; }
+  else                           { color = 'var(--err)';  label = '✗ Low Quality'; }
+
+  scoreEl.style.color   = color;
+  badge.textContent     = label;
+  badge.style.background = color.replace(')', ',0.13)').replace('var(', 'rgba(').replace('--ok','61,158,111').replace('--warn','201,162,39').replace('--err','200,80,80');
+  // simpler approach:
+  badge.style.background = qs.final_score >= 85 ? 'rgba(61,158,111,.15)'
+                         : qs.final_score >= 70  ? 'rgba(201,162,39,.15)'
+                                                  : 'rgba(200,80,80,.15)';
+  badge.style.color      = color;
+  badge.style.border     = `1px solid ${color}`;
+}
+
+/* ── render column profile table ──
+   Reads: data.profile.{column_names, dtypes, null_pct_by_column, rows, columns}
+*/
+function renderProfile(data) {
+  const p = data.profile;
+  if (!p) return;
+  document.getElementById('profileMeta').textContent =
+    ` — ${p.rows} rows × ${p.columns} columns`;
+
+  const tbody = document.getElementById('profileTbody');
+  tbody.innerHTML = '';
+  (p.column_names || []).forEach(col => {
+    const dtype   = p.dtypes ? p.dtypes[col] : '—';
+    const nullPct = p.null_pct_by_column ? (p.null_pct_by_column[col] ?? 0) : 0;
+    const badgeCls = nullPct === 0 ? 'zero' : nullPct >= 20 ? 'high' : 'low';
+    tbody.innerHTML +=
+      `<tr>
+         <td>${col}</td>
+         <td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:.77rem;">${dtype}</td>
+         <td><span class="null-badge ${badgeCls}">${nullPct}%</span></td>
+       </tr>`;
+  });
+}
+
+/* ── render issues list ──
+   Reads: data.issues[]  (array of strings)
+*/
+function renderIssues(data) {
+  const ul = document.getElementById('issuesList');
+  ul.innerHTML = '';
+  const issues = data.issues || [];
+  if (!issues.length) {
+    ul.innerHTML = '<li class="none">No significant issues detected.</li>';
+  } else {
+    issues.forEach(i => { ul.innerHTML += `<li>${i}</li>`; });
+  }
+}
+
+/* ── render duplicate report ──
+   Reads: data.duplicate_report.{
+     exact_duplicate_count, exact_duplicate_rate_pct,
+     key_columns[], key_duplicate_count, key_duplicate_rate_pct,
+     sample_key_duplicate_groups[]
+   }
+*/
+function renderDuplicates(data) {
+  const dr = data.duplicate_report;
+  if (!dr) return;
+  const grid = document.getElementById('dupGrid');
+  grid.innerHTML = `
+    <div class="dup-cell">
+      <div class="dc-label">Exact duplicates</div>
+      <div class="dc-val" style="color:${dr.exact_duplicate_count > 0 ? 'var(--err)' : 'var(--ok)'}">
+        ${dr.exact_duplicate_count}
+      </div>
+    </div>
+    <div class="dup-cell">
+      <div class="dc-label">Exact duplicate rate</div>
+      <div class="dc-val">${dr.exact_duplicate_rate_pct}%</div>
+    </div>`;
+
+  if (dr.key_columns && dr.key_columns.length) {
+    grid.innerHTML += `
+      <div class="dup-cell">
+        <div class="dc-label">Key columns</div>
+        <div class="dc-val" style="font-size:.85rem;">${dr.key_columns.join(', ')}</div>
+      </div>
+      <div class="dup-cell">
+        <div class="dc-label">Key duplicates</div>
+        <div class="dc-val" style="color:${(dr.key_duplicate_count||0) > 0 ? 'var(--err)' : 'var(--ok)'}">
+          ${dr.key_duplicate_count ?? '—'}
+        </div>
+      </div>
+      <div class="dup-cell">
+        <div class="dc-label">Key dup rate</div>
+        <div class="dc-val">${dr.key_duplicate_rate_pct != null ? dr.key_duplicate_rate_pct + '%' : '—'}</div>
+      </div>`;
+  }
+
+  const keyDupesDiv = document.getElementById('dupKeyDupes');
+  if (dr.sample_key_duplicate_groups && dr.sample_key_duplicate_groups.length) {
+    keyDupesDiv.style.display = 'block';
+    document.getElementById('dupKeyPre').textContent =
+      JSON.stringify(dr.sample_key_duplicate_groups, null, 2);
+  } else {
+    keyDupesDiv.style.display = 'none';
+  }
+}
+
+/* ── render key facts ──
+   Reads: data.key_facts[]  (array of strings)
+*/
+function renderKeyFacts(data) {
+  const ul = document.getElementById('factsList');
+  ul.innerHTML = '';
+  (data.key_facts || []).forEach(f => { ul.innerHTML += `<li>${f}</li>`; });
+  if (!data.key_facts || !data.key_facts.length)
+    ul.innerHTML = '<li style="color:var(--muted);font-size:.85rem;">No numeric/categorical facts available.</li>';
+}
+
+/* ── main showResults ── */
+function showResults(data) {
+  resultsDiv.classList.add('visible');
+  jsonOut.textContent = JSON.stringify(data, null, 2);
+
+  renderScoreCard(data);
+  renderProfile(data);
+  renderIssues(data);
+  renderDuplicates(data);
+  renderKeyFacts(data);
+
+  // AI summary
+  if (data.ai_summary) {
+    summaryBlock.style.display = 'block';
+    summaryText.textContent    = data.ai_summary;
+  } else {
+    summaryBlock.style.display = 'none';
+  }
+
+  // Banner based on llm_source
+  const src = data.llm_source;
+  if (src === 'ollama')
+    setBanner(sumBanner, 'ok',
+      'AI summary produced by your local Ollama model.');
+  else if (src === 'fallback')
+    setBanner(sumBanner, 'warn',
+      'Ollama did not respond — showing built-in analysis. Start Ollama locally and set OLLAMA_MODEL to enable AI summaries.');
+  else if (src === 'disabled')
+    setBanner(sumBanner, 'ok',
+      'AI summary disabled — showing built-in analysis only.');
+  else
+    setBanner(sumBanner, '', '');
+
+  // Show "Send to Visualise" button
+  sendToVisBtn.classList.add('visible');
+}
+
+/* ════ API calls (match app.py exactly) ════ */
+
+/**
+ * POST /analyse/upload
+ * Content-Type: multipart/form-data
+ * Query params: run_ai_summary (bool), key_columns (comma-separated string)
+ */
+async function apiAnalyseUpload(file, runAi) {
+  const fd = new FormData();
+  fd.append('file', file);                     // field name must be "file"
+
+  const params = new URLSearchParams();
+  params.set('run_ai_summary', runAi ? 'true' : 'false');
+  const k = sumKeys.value.trim();
+  if (k) params.set('key_columns', k);         // comma-separated string — app.py splits on ","
+
+  const res  = await fetch('/analyse/upload?' + params.toString(), { method: 'POST', body: fd });
+  const text = await res.text();
+  let body;
+  try   { body = JSON.parse(text); }
+  catch { throw new Error(text || res.statusText || 'Invalid JSON response'); }
+  if (!res.ok) {
+    const detail = body.detail;
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Request failed');
+  }
+  return body;
+}
+
+/**
+ * POST /analyse/text
+ * Content-Type: application/json
+ * Body: { csv_text: string, key_columns: string[]|null, run_ai_summary: bool }
+ */
+async function apiAnalyseText(csvText, runAi) {
+  const keyRaw = sumKeys.value.trim();
+  const keyArr = keyRaw ? keyRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+
+  const res  = await fetch('/analyse/text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      csv_text:       csvText,
+      key_columns:    keyArr,        // array or null
+      run_ai_summary: runAi,         // bool
+    }),
+  });
+  const text = await res.text();
+  let body;
+  try   { body = JSON.parse(text); }
+  catch { throw new Error(text || res.statusText || 'Invalid JSON response'); }
+  if (!res.ok) {
+    const detail = body.detail;
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Request failed');
+  }
+  return body;
+}
+
+/* ════ Button handlers ════ */
+btnAnalyse.addEventListener('click', async () => {
+  const file = sumFile.files && sumFile.files[0];
+  if (!file) { setBanner(sumBanner, 'err', 'Please choose a CSV file first.'); return; }
+
+  // Keep CSV text for "Send to Visualise"
+  lastCsvText = await file.text();
+
+  const runAi = sumAi.checked;
+  setBanner(sumBanner, '', '');
+  btnAnalyse.disabled = true;
+  showOverlay(runAi);
+  try {
+    const data = await apiAnalyseUpload(file, runAi);
+    showResults(data);
+  } catch (e) {
+    setBanner(sumBanner, 'err', e.message || String(e));
+    resultsDiv.classList.remove('visible');
+    sendToVisBtn.classList.remove('visible');
+  } finally {
+    hideOverlay();
+    btnAnalyse.disabled = false;
+  }
+});
+
+btnMock.addEventListener('click', async () => {
+  const runAi = sumAi.checked;
+  setBanner(sumBanner, '', '');
+  btnMock.disabled = true;
+  showOverlay(runAi);
+  try {
+    // GET /sample/csv → plain text
+    const res = await fetch('/sample/csv');
+    if (!res.ok) throw new Error('Could not load mock CSV from /sample/csv');
+    const csvText = await res.text();
+    lastCsvText   = csvText;                   // store for Visualise
+    const data    = await apiAnalyseText(csvText, runAi);
+    showResults(data);
+  } catch (e) {
+    setBanner(sumBanner, 'err', e.message || String(e));
+    resultsDiv.classList.remove('visible');
+    sendToVisBtn.classList.remove('visible');
+  } finally {
+    hideOverlay();
+    btnMock.disabled = false;
+  }
+});
+
+/** Push last analysed CSV into the Visualise tab */
+function sendCurrentCsvToVis() {
+  if (!lastCsvText) return;
+  loadVisCSV(lastCsvText, '(from Summarise)');
+  switchTab('visualise');
+}
+
+/* ═══════════════════════════════════════════════
+   VISUALISE
+═══════════════════════════════════════════════ */
+let visRows    = [];
+let visHeaders = [];
+let chartInstances = {};
+
+const CHART_COLORS = [
+  '#5b9fd4','#3ec9d6','#3d9e6f','#c9a227','#c85050',
+  '#9b7ed4','#d47c5b','#5bd4a0','#d4c45b','#7ba8d4',
+];
+const CHART_OPTS_BASE = {
+  responsive: true,
+  plugins: { legend: { labels: { color: '#8b9cb3', font: { size: 11 } } } },
+};
+const SCALE_OPTS = {
+  x: { ticks: { color: '#8b9cb3', font: { size: 10 } }, grid: { color: 'rgba(45,58,77,.5)' } },
+  y: { ticks: { color: '#8b9cb3', font: { size: 10 } }, grid: { color: 'rgba(45,58,77,.5)' } },
+};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+function makeChart(id, config) {
+  destroyChart(id);
+  chartInstances[id] = new Chart(document.getElementById(id).getContext('2d'), config);
+}
+
+/** Minimal CSV parser — handles quoted fields */
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return { headers: [], rows: [] };
+  const split = line => {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === ',' && !inQ) { out.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const headers = split(lines[0]);
+  const rows = lines.slice(1).map(line => {
+    const vals = split(line);
+    const obj  = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
+    return obj;
+  });
+  return { headers, rows };
+}
+
+function populateColumnSelects() {
+  const xSel = document.getElementById('visXCol');
+  const ySel = document.getElementById('visYCol');
+  xSel.innerHTML = ySel.innerHTML = '';
+  visHeaders.forEach(h => {
+    xSel.innerHTML += `<option value="${h}">${h}</option>`;
+    ySel.innerHTML += `<option value="${h}">${h}</option>`;
+  });
+  // Auto-select first numeric col for Y
+  const numCol = visHeaders.find(h =>
+    visRows.some(r => r[h] !== '' && !isNaN(Number(r[h])))
+  );
+  if (numCol)             ySel.value = numCol;
+  if (visHeaders.length > 1) xSel.value = visHeaders[0];
+}
+
+function renderCustomChart() {
+  const xCol  = document.getElementById('visXCol').value;
+  const yCol  = document.getElementById('visYCol').value;
+  const cType = document.getElementById('visChartType').value;
+  if (!xCol || !yCol) return;
+
+  document.getElementById('customChartTitle').textContent =
+    `${yCol} by ${xCol} (${cType})`;
+
+  const groups = {};
+  visRows.forEach(row => {
+    const x = (row[xCol] || '(empty)').toString().substring(0, 40);
+    const y = parseFloat(row[yCol]);
+    if (!isNaN(y)) groups[x] = (groups[x] || 0) + y;
+  });
+  const sorted = Object.entries(groups).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const labels = sorted.map(e => e[0]);
+  const values = sorted.map(e => e[1]);
+  const isCirc  = cType === 'pie' || cType === 'doughnut';
+
+  makeChart('customChart', {
+    type: cType,
+    data: {
+      labels,
+      datasets: [{
+        label: yCol,
+        data: values,
+        backgroundColor: isCirc ? CHART_COLORS.slice(0, labels.length) : CHART_COLORS[0],
+        borderColor:     isCirc ? 'transparent' : CHART_COLORS[0],
+        borderWidth: isCirc ? 0 : 1,
+        borderRadius: cType === 'bar' ? 5 : 0,
+      }],
+    },
+    options: {
+      ...CHART_OPTS_BASE,
+      scales: isCirc ? {} : SCALE_OPTS,
+    },
+  });
+}
+
+function renderAutoCharts() {
+  const col0 = visHeaders[0];
+
+  /* ① Value distribution — top 10 of first column */
+  const freq = {};
+  visRows.forEach(r => { const v = (r[col0]||'(empty)').toString(); freq[v]=(freq[v]||0)+1; });
+  const topVals = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  document.getElementById('distChartTitle').textContent =
+    `"${col0}" — top ${topVals.length} values`;
+  makeChart('distChart', {
+    type: 'bar',
+    data: { labels: topVals.map(e=>e[0]), datasets: [{
+      label: 'Count', data: topVals.map(e=>e[1]),
+      backgroundColor: 'rgba(91,159,212,.7)', borderRadius: 4,
+    }]},
+    options: { ...CHART_OPTS_BASE, indexAxis: 'y',
+      plugins: { legend: { display: false } }, scales: SCALE_OPTS },
+  });
+
+  /* ② Missing values per column */
+  const missCounts = visHeaders.map(h =>
+    visRows.filter(r => !r[h] || r[h].toString().trim() === '').length
+  );
+  makeChart('missingChart', {
+    type: 'bar',
+    data: { labels: visHeaders, datasets: [{
+      label: 'Missing rows', data: missCounts,
+      backgroundColor: 'rgba(201,162,39,.7)', borderRadius: 4,
+    }]},
+    options: { ...CHART_OPTS_BASE,
+      plugins: { legend: { display: false } }, scales: SCALE_OPTS },
+  });
+
+  /* ③ Numeric column max values */
+  const numCols = visHeaders.filter(h => {
+    const vals = visRows.map(r=>r[h]).filter(v=>v!=='');
+    return vals.length && vals.every(v=>!isNaN(Number(v)));
+  });
+  const statsCard = document.getElementById('statsChartCard');
+  if (numCols.length) {
+    statsCard.style.display = 'block';
+    const maxVals = numCols.map(h => Math.max(...visRows.map(r=>parseFloat(r[h])||0)));
+    makeChart('statsChart', {
+      type: 'bar',
+      data: { labels: numCols, datasets: [{
+        label: 'Max value', data: maxVals,
+        backgroundColor: CHART_COLORS.slice(0, numCols.length), borderRadius: 4,
+      }]},
+      options: { ...CHART_OPTS_BASE,
+        plugins: { legend: { display: false } }, scales: SCALE_OPTS },
+    });
+  } else {
+    statsCard.style.display = 'none';
+  }
+
+  /* ④ Complete vs incomplete rows */
+  const incomplete = visRows.filter(r =>
+    visHeaders.some(h => !r[h] || r[h].toString().trim() === '')
+  ).length;
+  const complete = visRows.length - incomplete;
+  makeChart('rowChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Complete rows', 'Rows with missing values'],
+      datasets: [{ data: [complete, incomplete],
+        backgroundColor: ['rgba(61,158,111,.8)','rgba(200,80,80,.7)'],
+        borderColor: 'transparent',
+      }],
+    },
+    options: CHART_OPTS_BASE,
+  });
+}
+
+function renderDataTable() {
+  const preview  = visRows.slice(0, 20);
+  const total    = visRows.length;
+  document.getElementById('previewMeta').textContent =
+    `(first ${Math.min(20, total)} of ${total} rows)`;
+
+  let html = '<table><thead><tr>';
+  visHeaders.forEach(h => { html += `<th>${h}</th>`; });
+  html += '</tr></thead><tbody>';
+  preview.forEach(row => {
+    html += '<tr>';
+    visHeaders.forEach(h => {
+      const v = row[h] ?? '';
+      const cls = v === '' ? ' class="null-cell"' : '';
+      html += `<td${cls}>${v === '' ? 'null' : v}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('dataTableWrap').innerHTML = html;
+}
+
+function loadVisCSV(text, filename) {
+  const parsed = parseCSV(text);
+  if (!parsed.headers.length) {
+    alert('Could not parse CSV — make sure the file has a header row.');
+    return;
+  }
+  visHeaders = parsed.headers;
+  visRows    = parsed.rows;
+
+  const pill = document.getElementById('visPill');
+  pill.style.display = 'inline-block';
+  pill.textContent   = filename
+    ? `${filename} — ${visRows.length} rows × ${visHeaders.length} cols`
+    : `${visRows.length} rows × ${visHeaders.length} cols`;
+
+  document.getElementById('visUploadTitle').textContent =
+    filename ? `✓  ${filename}` : '✓  Data loaded';
+
+  document.getElementById('vis-empty').style.display = 'none';
+  document.getElementById('vis-charts').classList.add('visible');
+
+  populateColumnSelects();
+  renderCustomChart();
+  renderAutoCharts();
+  renderDataTable();
+}
+
+/* File input */
+document.getElementById('visFile').addEventListener('change', function () {
+  const file = this.files && this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => loadVisCSV(e.target.result, file.name);
+  reader.readAsText(file);
+});
+
+/* Drag & drop */
+const dropZone = document.getElementById('visDropZone');
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.name.toLowerCase().endsWith('.csv')) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadVisCSV(ev.target.result, file.name);
+  reader.readAsText(file);
+});
+</script>
+</body>
+</html>

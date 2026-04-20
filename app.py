@@ -337,9 +337,9 @@ def root() -> dict[str, str]:
 
 @app.get("/ui", response_class=HTMLResponse)
 def ui() -> HTMLResponse:
-    path = _APP_DIR / "static" / "index2.html"
+    path = _APP_DIR / "static" / "index4.html"
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="UI not found (static/index2.html).")
+        raise HTTPException(status_code=404, detail="UI not found (static/index4.html).")
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
